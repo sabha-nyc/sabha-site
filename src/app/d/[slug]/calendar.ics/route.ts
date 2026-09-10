@@ -59,7 +59,7 @@ export async function GET(
   return new Response(body, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${slug}.ics"`,
+      "Content-Disposition": `attachment; filename="sabha-${slug}.ics"`,
       "Cache-Control": "no-store",
     },
   });
