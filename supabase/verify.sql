@@ -35,6 +35,7 @@ select p.proname,
 -- expect: proconfig = {search_path=public,\ pg_temp} on both
 
 -- 5. Does the function owner bypass RLS? This is the FORCE interaction.
+--    Settled 2026-09-10: postgres, rolbypassrls = true. Keep security definer.
 select p.proname, r.rolname as owner, r.rolbypassrls
   from pg_proc p
   join pg_roles r on r.oid = p.proowner
@@ -50,3 +51,26 @@ select table_name, grantee, privilege_type
    and grantee in ('anon','authenticated')
  order by table_name, grantee;
 -- expect: zero rows
+
+-- 7. EXECUTE on the two functions. THIS IS THE ONE THAT BIT US.
+--    Functions are granted EXECUTE to PUBLIC on creation and anon inherits it,
+--    so revoking from anon by name leaves the hole wide open. has_function_
+--    privilege resolves inheritance, which naming the grantee in
+--    information_schema does not.
+select p.proname,
+       has_function_privilege('anon',          p.oid, 'EXECUTE') as anon_execute,
+       has_function_privilege('authenticated', p.oid, 'EXECUTE') as auth_execute,
+       has_function_privilege('service_role',  p.oid, 'EXECUTE') as service_execute
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname in ('hold_seat','confirm_payment')
+ order by p.proname;
+-- expect: anon_execute = false, auth_execute = false, service_execute = true
+
+-- 8. The view runs as the invoker, not its owner.
+select c.relname, c.reloptions
+  from pg_class c
+ where c.relname = 'dinner_availability'
+   and c.relnamespace = 'public'::regnamespace;
+-- expect: reloptions contains security_invoker=true

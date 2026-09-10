@@ -63,7 +63,12 @@ create unique index if not exists signups_one_seat_per_phone
 
 -- ─────────────────────────────────────────── seats remaining is a query
 
-create or replace view dinner_availability as
+-- security_invoker: the view has no RLS of its own and would otherwise run as
+-- its owner. Harmless while nobody can select it, but it means any future
+-- grant is safe by construction rather than by remembering.
+create or replace view dinner_availability
+  with (security_invoker = true)
+as
 select
   d.id,
   d.seats_total,
@@ -249,17 +254,36 @@ revoke all on dinners       from anon, authenticated;
 revoke all on signups       from anon, authenticated;
 revoke all on code_attempts from anon, authenticated;
 revoke all on dinner_availability from anon, authenticated;
-revoke execute on function hold_seat(uuid, text, text, text, int) from anon, authenticated;
-revoke execute on function confirm_payment(text, text, integer) from anon, authenticated;
-
--- ─────────────────────────────── a note on FORCE and security definer
--- hold_seat and confirm_payment are SECURITY DEFINER, so they execute as the
--- function owner. FORCE makes the owner subject to RLS, and with no policies
--- defined that means denied — unless the owner holds BYPASSRLS.
+-- Functions are granted EXECUTE to PUBLIC on creation, and anon inherits from
+-- PUBLIC. Revoking from anon by name leaves that default grant untouched — so
+-- the two lines that used to be here closed nothing on a clean apply, and
+-- confirm_payment (which marks a signup paid) was reachable over PostgREST RPC
+-- with the anon key that ships in the browser bundle.
 --
--- Whether Supabase's `postgres` role has BYPASSRLS is exactly the sort of thing
--- that should be checked against the actual database rather than assumed. Run
--- the verification block below after applying this file. If hold_seat fails,
--- the fix is one word: drop `security definer` from both functions. They are
--- only ever called through the service-role client, which has BYPASSRLS of its
--- own, so running as the invoker is both sufficient and less privilege.
+-- Revoke from PUBLIC first, then grant back to the one role that needs it.
+-- Order matters: the grant must follow the revoke.
+revoke execute on all functions in schema public from public, anon, authenticated;
+grant  execute on all functions in schema public to service_role;
+
+-- And for anything created here later, so the next function isn't born public.
+-- Applies to objects created by the role running this file.
+alter default privileges in schema public
+  revoke execute on functions from public, anon, authenticated;
+
+-- NOTE: the sweep above is deliberately schema-wide. If pgcrypto ever lands in
+-- `public` rather than `extensions`, gen_random_bytes() — used by the
+-- details_token default — is covered by the service_role grant above, so
+-- inserts still work. Worth re-checking if that default ever starts failing.
+
+-- ─────────────────────────────── FORCE and security definer: settled
+-- hold_seat and confirm_payment are SECURITY DEFINER, so they execute as the
+-- function owner, and FORCE makes the owner subject to RLS. With no policies
+-- defined that would be a denial — unless the owner holds BYPASSRLS.
+--
+-- Checked against this project on 2026-09-10: owner is `postgres`, which has
+-- rolbypassrls = true (and rolsuper = false). So FORCE plus SECURITY DEFINER
+-- is fine here and hold_seat works. Keep definer.
+--
+-- If this is ever rebuilt on a project where the owner lacks BYPASSRLS, the
+-- fix is one word: drop `security definer` from both. They are only ever
+-- called through the service-role client, which has BYPASSRLS of its own.

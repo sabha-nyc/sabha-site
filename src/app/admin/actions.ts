@@ -88,6 +88,12 @@ function parseDinnerForm(form: FormData): ParsedDinner {
   const seatsTotal = Number(form.get("seats_total") ?? NaN);
   const accessCode = String(form.get("access_code") ?? "").trim();
 
+  // host_phone is a phone number like any other. It was going in with a bare
+  // trim, so "(704) 898-3986" would have been stored verbatim and the
+  // sms: link on the confirmation page would have been malformed.
+  const hostPhoneRaw = String(form.get("host_phone") ?? "").trim();
+  const hostPhone = hostPhoneRaw ? toE164(hostPhoneRaw) : null;
+
   if (!title) return { ok: false, error: "The dinner needs a title." };
   if (!slug) return { ok: false, error: "The dinner needs a slug." };
   if (!startsAtLocal) return { ok: false, error: "When does it start?" };
@@ -96,6 +102,8 @@ function parseDinnerForm(form: FormData): ParsedDinner {
   if (!Number.isInteger(seatsTotal) || seatsTotal < 1)
     return { ok: false, error: "Seats has to be a whole number, one or more." };
   if (!accessCode) return { ok: false, error: "The dinner needs an access code." };
+  if (hostPhoneRaw && !hostPhone)
+    return { ok: false, error: "That host phone number doesn't look right." };
 
   return {
     ok: true,
@@ -109,7 +117,7 @@ function parseDinnerForm(form: FormData): ParsedDinner {
       seats_total: seatsTotal,
       access_code: accessCode,
       details_note: String(form.get("details_note") ?? "").trim() || null,
-      host_phone: String(form.get("host_phone") ?? "").trim() || null,
+      host_phone: hostPhone,
       status: (String(form.get("status") ?? "draft") as Dinner["status"]) || "draft",
     },
   };
