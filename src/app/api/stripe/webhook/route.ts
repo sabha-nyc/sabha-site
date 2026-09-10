@@ -77,6 +77,8 @@ export async function POST(req: Request) {
       }
 
       case "checkout.session.expired": {
+        // Errors are deliberately swallowed here: an unhandled expiry
+        // self-heals, because the hold ages out and the seat count is a query.
         const session = event.data.object;
         await db()
           .from("signups")
@@ -92,13 +94,32 @@ export async function POST(req: Request) {
           typeof charge.payment_intent === "string"
             ? charge.payment_intent
             : charge.payment_intent?.id;
-        if (intentId) {
-          // Refunds issued from the Stripe dashboard should show up here too.
-          await db()
-            .from("signups")
-            .update({ status: "refunded" })
-            .eq("stripe_payment_intent", intentId)
-            .in("status", ["paid", "overbooked"]);
+        if (!intentId) break;
+
+        // Only a full refund gives the seat back. A partial refund is a
+        // goodwill gesture to someone who is still coming to dinner, and
+        // freeing their seat would sell it out from under them.
+        if (charge.amount_refunded < charge.amount) {
+          console.log(
+            "[webhook] partial refund, seat kept:",
+            intentId,
+            `${charge.amount_refunded} of ${charge.amount}`
+          );
+          break;
+        }
+
+        // Refunds issued from the Stripe dashboard should show up here too.
+        const { error: refundError } = await db()
+          .from("signups")
+          .update({ status: "refunded" })
+          .eq("stripe_payment_intent", intentId)
+          .in("status", ["paid", "overbooked"]);
+
+        if (refundError) {
+          // A refunded guest left as 'paid' holds a seat forever, and nothing
+          // else in the system will ever notice. Make Stripe retry.
+          console.error("[webhook] refund sync failed", intentId, refundError);
+          return new NextResponse("Could not record refund", { status: 500 });
         }
         break;
       }
