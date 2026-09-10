@@ -135,12 +135,16 @@ export function DinnerForm({ dinner }: { dinner?: Dinner }) {
             <p className="help">Case-insensitive. Trailing spaces are forgiven.</p>
           </div>
           <div>
-            <label htmlFor="status">Status</label>
-            <select id="status" name="status" defaultValue={dinner?.status ?? "draft"}>
-              <option value="draft">Draft</option>
-              <option value="open">Open</option>
-              <option value="closed">Closed</option>
-            </select>
+            <label>Status</label>
+            {/* Read-only on purpose. Opening signups is the one action that
+                lets strangers pay, so it lives behind the Stripe check on the
+                guest list rather than in a dropdown among ordinary fields. */}
+            <p className="statusline">{dinner?.status ?? "draft"}</p>
+            <p className="help">
+              {dinner
+                ? "Open and close signups from the guest list."
+                : "New dinners start as a draft."}
+            </p>
           </div>
         </div>
 

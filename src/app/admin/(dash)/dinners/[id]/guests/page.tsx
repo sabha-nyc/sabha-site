@@ -4,7 +4,8 @@ import { AddGuestForm } from "@/components/admin/AddGuestForm";
 import { CopyButton } from "@/components/admin/CopyButton";
 import { RemoveGuest } from "@/components/admin/RemoveGuest";
 import { TransferGuest } from "@/components/admin/TransferGuest";
-import { setDinnerStatus } from "@/app/admin/actions";
+import { OpenSignups } from "@/components/admin/OpenSignups";
+import { stripeMode } from "@/lib/stripe";
 import { attending, dinnerById, SEATED, signupsFor } from "@/lib/dinners";
 import { displayPhone, longDate, money, moneyExact, shortDate, time } from "@/lib/format";
 import type { Signup } from "@/lib/types";
@@ -23,6 +24,8 @@ export default async function GuestList({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const dinner = await dinnerById(id);
   if (!dinner) notFound();
+
+  const mode = stripeMode();
 
   const all = await signupsFor(dinner.id);
   const rows = attending(all);
@@ -55,6 +58,10 @@ export default async function GuestList({ params }: { params: Promise<{ id: stri
         <Link className="crumb" href={`/admin/dinners/${dinner.id}`}>
           Edit
         </Link>
+      </p>
+
+      <p className={`stripemode ${mode}`}>
+        Stripe: {mode === "live" ? "LIVE — real cards" : mode === "test" ? "TEST — no card is ever charged" : "KEY MISSING"}
       </p>
 
       <dl className="stats">
@@ -90,17 +97,7 @@ export default async function GuestList({ params }: { params: Promise<{ id: stri
         <a className="abtn sec" href={`/admin/dinners/${dinner.id}/guests/export`}>
           Export CSV
         </a>
-        <form action={setDinnerStatus}>
-          <input type="hidden" name="id" value={dinner.id} />
-          <input
-            type="hidden"
-            name="status"
-            value={dinner.status === "open" ? "closed" : "open"}
-          />
-          <button className="abtn sec" type="submit">
-            {dinner.status === "open" ? "Close signups" : "Open signups"}
-          </button>
-        </form>
+        <OpenSignups dinnerId={dinner.id} status={dinner.status} mode={mode} />
       </div>
 
       <AddGuestForm dinnerId={dinner.id} />

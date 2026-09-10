@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/supabase";
-import { stripe } from "@/lib/stripe";
+import { stripe, stripeMode } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { authClient, requireAdmin } from "@/lib/auth";
+import { dinnerById } from "@/lib/dinners";
 import { toE164 } from "@/lib/format";
 import type { Dinner } from "@/lib/types";
 
@@ -71,7 +72,7 @@ type DinnerValues = {
   access_code: string;
   details_note: string | null;
   host_phone: string | null;
-  status: Dinner["status"];
+  // Deliberately no status — see parseDinnerForm.
 };
 
 type ParsedDinner = { ok: false; error: string } | { ok: true; values: DinnerValues };
@@ -118,7 +119,10 @@ function parseDinnerForm(form: FormData): ParsedDinner {
       access_code: accessCode,
       details_note: String(form.get("details_note") ?? "").trim() || null,
       host_phone: hostPhone,
-      status: (String(form.get("status") ?? "draft") as Dinner["status"]) || "draft",
+      // No status. The dinner form must never be able to set one — otherwise
+      // the edit page is a second, ungated door to 'open' and the Stripe check
+      // in setDinnerStatus is decoration. Status moves only through
+      // setDinnerStatus, which carries both gates.
     },
   };
 }
@@ -128,7 +132,13 @@ export async function createDinner(_prev: AdminState, form: FormData): Promise<A
   const parsed = parseDinnerForm(form);
   if (!parsed.ok) return { error: parsed.error };
 
-  const { data, error } = await db().from("dinners").insert(parsed.values).select("id").single();
+  // Always born a draft. Nothing is reachable until someone opens it on the
+  // guest list, past the Stripe check.
+  const { data, error } = await db()
+    .from("dinners")
+    .insert({ ...parsed.values, status: "draft" })
+    .select("id")
+    .single();
   if (error) {
     if (error.code === "23505") return { error: "That slug or access code is already taken." };
     console.error("[admin] createDinner", error);
@@ -159,16 +169,64 @@ export async function updateDinner(_prev: AdminState, form: FormData): Promise<A
   return { error: null, ok: "Saved." };
 }
 
-export async function setDinnerStatus(form: FormData): Promise<void> {
+/**
+ * Opening signups is the one irreversible-feeling action here: from the moment
+ * it flips, strangers can pay. Two gates sit in front of it.
+ *
+ * The first is not a confirmation, it is a refusal. With a test key, Checkout
+ * happily completes and charges nobody — forty people would believe they had
+ * a seat at a dinner that had taken no money. No amount of "are you sure"
+ * makes that a decision worth offering, so it simply cannot be done.
+ *
+ * The second, once the key is live, is a typed confirmation. Closing is never
+ * gated: stopping sales is always allowed to be easy.
+ */
+export async function setDinnerStatus(_prev: AdminState, form: FormData): Promise<AdminState> {
   await requireAdmin();
   const id = String(form.get("id") ?? "");
   const status = String(form.get("status") ?? "");
-  if (!["draft", "open", "closed"].includes(status)) return;
+  if (!["draft", "open", "closed"].includes(status)) return { error: "Unknown status." };
 
-  await db().from("dinners").update({ status }).eq("id", id);
+  if (status === "open") {
+    const mode = stripeMode();
+    if (mode === "test") {
+      return {
+        error:
+          "Stripe is in test mode. Opening signups would let guests book seats " +
+          "that never charge a card. Do the live rehearsal, put the live key in, " +
+          "then come back.",
+      };
+    }
+    if (mode !== "live") {
+      return {
+        error:
+          "STRIPE_SECRET_KEY is missing or unrecognised, so payments can't be " +
+          "trusted. Signups stay shut until that is fixed.",
+      };
+    }
+
+    const dinner = await dinnerById(id);
+    if (!dinner) return { error: "That dinner is gone." };
+
+    const typed = String(form.get("confirm") ?? "").trim().toLowerCase();
+    if (typed !== dinner.access_code.trim().toLowerCase()) {
+      return { error: `Type the access code exactly to open signups.` };
+    }
+  }
+
+  const { error } = await db().from("dinners").update({ status }).eq("id", id);
+  if (error) {
+    console.error("[admin] setDinnerStatus", error);
+    return { error: "Couldn't change the status." };
+  }
+
   revalidatePath("/admin");
   revalidatePath(`/admin/dinners/${id}`);
   revalidatePath(`/admin/dinners/${id}/guests`);
+  return {
+    error: null,
+    ok: status === "open" ? "Signups are open. Seats can now be paid for." : `Signups ${status}.`,
+  };
 }
 
 // ────────────────────────────────────────────────────────── guests
