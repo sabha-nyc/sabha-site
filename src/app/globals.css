@@ -163,6 +163,8 @@ a { color: var(--ink); }
   font-weight: 600;
   cursor: pointer;
   margin-top: 28px;
+  text-decoration: none;
+  text-align: center;
 }
 .btn:hover { background: #0E2811; }
 .btn:disabled { opacity: 0.5; cursor: default; }
