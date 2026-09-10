@@ -1,4 +1,4 @@
-import { dinnerBySlug, signupByToken } from "@/lib/dinners";
+import { dinnerBySlug, SEATED, signupByToken } from "@/lib/dinners";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function GET(
   if (!signup || !dinner || signup.dinner_id !== dinner.id) {
     return new Response("Not found", { status: 404 });
   }
-  if (!["paid", "comped"].includes(signup.status)) {
+  if (!SEATED.includes(signup.status)) {
     return new Response("Not found", { status: 404 });
   }
 

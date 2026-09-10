@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { db } from "@/lib/supabase";
+import { alertAdmins } from "@/lib/alerts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,6 +55,22 @@ export async function POST(req: Request) {
             "[webhook] OVERBOOKED — charged but no seat. Refund manually:",
             row.id,
             row.stripe_payment_intent
+          );
+          // Awaited, but alertAdmins never throws — a failed alert must not
+          // turn into a 500, because Stripe would retry a payment we have
+          // already recorded.
+          await alertAdmins(
+            "Sabha — a seat was paid for that no longer exists",
+            [
+              `${row.name} (${row.phone}) paid for a seat that had already gone.`,
+              "",
+              "They have been charged and they are not on the list. This needs a",
+              "refund from the Stripe dashboard, and a text to say so.",
+              "",
+              `Payment intent: ${row.stripe_payment_intent}`,
+              `Signup: ${row.id}`,
+              `Guest list: ${env.siteUrl}/admin/dinners/${row.dinner_id}/guests`,
+            ].join("\n")
           );
         }
         break;

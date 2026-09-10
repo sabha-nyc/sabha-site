@@ -445,4 +445,26 @@ a { color: var(--ink); }
   margin: 34px 0 0;
 }
 
+/* Someone has been charged for a seat they don't have. Say so, loudly. */
+.adm .banner {
+  margin: 0;
+  padding: 14px 26px 16px;
+  background: #F6EBE3;
+  border-bottom: 2px solid var(--accent-warn);
+  color: #5C3A25;
+}
+.adm .banner-head {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--accent-warn);
+}
+.adm .banner-list { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.6; }
+.adm .banner-list strong { color: #4A2B18; }
+.adm .banner-list .mono { color: #5C3A25; font-size: 12.5px; }
+.adm .banner-list a { color: var(--accent-warn); }
+.adm .banner-foot { margin: 8px 0 0; font-size: 12.5px; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

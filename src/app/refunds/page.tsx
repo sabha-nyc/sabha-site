@@ -8,19 +8,20 @@ export default function RefundsPage() {
     <main className="scr">
       <Logo width={96} />
       <div className="prose">
-        <h1>Refunds</h1>
+        <h1>Refunds and transfers</h1>
         <p>
-          <strong>Full refund up to 72 hours before the dinner.</strong> Text the host, or reply to
-          the message your code arrived in, and the refund goes back to the card you paid with.
-          Stripe usually returns it within five to ten business days.
+          <strong>Seats are non-refundable.</strong> The room is small and the food is bought
+          against the count, so a seat that goes back is a seat that stays empty.
         </p>
         <p>
-          <strong>Inside 72 hours the seat is transferable but not refundable.</strong> The food is
-          bought by then. Send someone in your place &mdash; tell the host who is coming and any
-          dietary restrictions, and that is the whole process.
+          <strong>Every seat is transferable, right up to the day of the dinner.</strong> If you
+          can&rsquo;t come, send someone in your place. Text the host their name and number, and
+          any dietary restrictions &mdash; that is the whole process. The link you were sent
+          becomes theirs; nothing else changes and no money moves.
         </p>
         <p>
-          <strong>If a dinner is cancelled</strong> every seat is refunded in full, without asking.
+          <strong>If a dinner is cancelled</strong> every seat is refunded in full, without
+          asking.
         </p>
         <p className="fine">
           <Link href="/">Back</Link>

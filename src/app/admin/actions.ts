@@ -6,7 +6,7 @@ import { db } from "@/lib/supabase";
 import { stripe } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { authClient, requireAdmin } from "@/lib/auth";
-import { normalizePhone } from "@/lib/format";
+import { toE164 } from "@/lib/format";
 import type { Dinner } from "@/lib/types";
 
 export type AdminState = { error: string | null; ok?: string | null };
@@ -169,11 +169,11 @@ export async function addGuest(_prev: AdminState, form: FormData): Promise<Admin
   await requireAdmin();
   const dinnerId = String(form.get("dinner_id") ?? "");
   const name = String(form.get("name") ?? "").trim();
-  const phone = normalizePhone(String(form.get("phone") ?? ""));
+  const phone = toE164(String(form.get("phone") ?? ""));
   const diet = String(form.get("dietary_restrictions") ?? "").trim() || null;
 
   if (!name) return { error: "The guest needs a name." };
-  if (phone.length !== 10) return { error: "That phone number doesn't look right." };
+  if (!phone) return { error: "That phone number doesn't look right." };
 
   // A comped row with its own details token, and no charge.
   const { error } = await db().from("signups").insert({
@@ -226,4 +226,54 @@ export async function removeGuest(form: FormData): Promise<void> {
 
   await db().from("signups").update({ status }).eq("id", id);
   revalidatePath(`/admin/dinners/${dinnerId}/guests`);
+}
+
+/**
+ * Transfer a seat. Seats are non-refundable, so this is the only remedy a
+ * guest has — and a guest with no remedy files a chargeback instead.
+ *
+ * The row keeps its id, its details_token and its stripe_payment_intent,
+ * because the person who paid is still the person who paid. Only the name and
+ * the phone change, and the status records that they did. The details link
+ * already in the original guest's text keeps working, which is exactly how
+ * they hand the seat over.
+ */
+export async function transferGuest(_prev: AdminState, form: FormData): Promise<AdminState> {
+  await requireAdmin();
+  const id = String(form.get("signup_id") ?? "");
+  const dinnerId = String(form.get("dinner_id") ?? "");
+  const name = String(form.get("name") ?? "").trim();
+  const phone = toE164(String(form.get("phone") ?? ""));
+
+  if (!name) return { error: "The new guest needs a name." };
+  if (!phone) return { error: "That phone number doesn't look right." };
+
+  const { data: current } = await db()
+    .from("signups")
+    .select("id, status, name, phone")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!current) return { error: "That guest is gone." };
+  if (!["paid", "comped", "transferred"].includes(current.status)) {
+    return { error: `A ${current.status} seat can't be transferred.` };
+  }
+
+  // A comped seat handed on is still a comped seat — no money moved, and
+  // saying otherwise would put it in the collected column.
+  const status = current.status === "comped" ? "comped" : "transferred";
+
+  const { error } = await db()
+    .from("signups")
+    .update({ name, phone, status })
+    .eq("id", id);
+
+  if (error) {
+    if (error.code === "23505") return { error: "That number already has a seat at this dinner." };
+    console.error("[admin] transferGuest", error);
+    return { error: "Couldn't transfer the seat." };
+  }
+
+  revalidatePath(`/admin/dinners/${dinnerId}/guests`);
+  return { error: null, ok: `Seat transferred to ${name}. Their details link is unchanged.` };
 }

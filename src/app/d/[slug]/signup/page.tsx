@@ -27,8 +27,12 @@ export default async function SignupPage({ params }: { params: Promise<{ slug: s
 
       <p className="fine">
         Card handled by Stripe; the site never sees it. Your seat is held for{" "}
-        {env.seatHoldMinutes} minutes. Full refund up to 72 hours before &mdash;{" "}
-        <Link href="/refunds">the policy in full</Link>.
+        {env.seatHoldMinutes} minutes.
+      </p>
+      <p className="fine">
+        <strong style={{ color: "var(--ink-body)" }}>Seats are non-refundable.</strong> If you
+        can&rsquo;t come, send someone in your place &mdash; tell the host who, and the seat is
+        theirs. <Link href="/refunds">The policy in full</Link>.
       </p>
 
       <div className="grow" />

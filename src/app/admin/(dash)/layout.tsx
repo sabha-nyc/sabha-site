@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { requireAdmin } from "@/lib/auth";
 import { signOut } from "@/app/admin/actions";
+import { OverbookedBanner } from "@/components/admin/OverbookedBanner";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Sabha — Admin" };
@@ -26,6 +27,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </button>
         </form>
       </div>
+      <OverbookedBanner />
       {children}
     </div>
   );

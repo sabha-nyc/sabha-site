@@ -7,7 +7,7 @@ import { env } from "@/lib/env";
 import { grantAccess, hasAccess } from "@/lib/access";
 import { clientIp, recordAttempt, tooManyAttempts } from "@/lib/rate-limit";
 import { dinnerByCode, dinnerBySlug } from "@/lib/dinners";
-import { normalizePhone } from "@/lib/format";
+import { toE164 } from "@/lib/format";
 import type { Signup } from "@/lib/types";
 
 export type FormState = { error: string | null };
@@ -19,10 +19,10 @@ export async function enterCode(_prev: FormState, form: FormData): Promise<FormS
   if (!code.trim()) return { error: "Enter the code from your invitation." };
 
   const ip = await clientIp();
-  if (await tooManyAttempts(ip)) {
+  if (await tooManyAttempts("code", ip)) {
     return { error: "Too many tries. Give it ten minutes." };
   }
-  await recordAttempt(ip);
+  await recordAttempt("code", ip);
 
   const dinner = await dinnerByCode(code);
   // Never confirm whether a dinner exists at a guessed slug.
@@ -54,8 +54,16 @@ export async function startCheckout(_prev: FormState, form: FormData): Promise<F
 
   if (!name) return { error: "We need a name for the door." };
 
-  const phone = normalizePhone(phoneRaw);
-  if (phone.length !== 10) return { error: "That phone number doesn't look right." };
+  const phone = toE164(phoneRaw);
+  if (!phone) return { error: "That phone number doesn't look right." };
+
+  // Holding a seat costs nothing, so it has to cost something. Without this
+  // one person can sit on every seat, fifteen minutes at a time, forever.
+  const ip = await clientIp();
+  if (await tooManyAttempts("hold", ip)) {
+    return { error: "Too many held seats from here. Give it half an hour." };
+  }
+  await recordAttempt("hold", ip);
 
   const { data, error } = await db().rpc("hold_seat", {
     p_dinner_id: dinner.id,
@@ -87,7 +95,13 @@ export async function startCheckout(_prev: FormState, form: FormData): Promise<F
               unit_amount: dinner.price_cents,
               product_data: {
                 name: dinner.title,
-                description: [dinner.neighborhood, "One seat"].filter(Boolean).join(" · "),
+                description: [
+                  dinner.neighborhood,
+                  "One seat",
+                  "Non-refundable — transferable up to the day of the dinner",
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
               },
             },
           },
@@ -98,9 +112,11 @@ export async function startCheckout(_prev: FormState, form: FormData): Promise<F
         client_reference_id: signup.id,
         metadata: { signup_id: signup.id, dinner_id: dinner.id },
         payment_intent_data: { statement_descriptor_suffix: "SABHA DINNER" },
-        // No expires_at: Stripe's minimum is 30 minutes, which would outlive
-        // the 15-minute hold and read as authoritative when it isn't. The
-        // database hold is the gate; the webhook re-checks capacity anyway.
+        // Stripe's floor is 30 minutes, so this can't match the 15-minute
+        // hold exactly. It still matters: the default is 24 hours, which lets
+        // a checkout complete a day after its hold died and land in
+        // 'overbooked'. 30 minutes bounds that window to one hold plus one.
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       },
       // If the guest double-submits, Stripe returns the same session rather
       // than charging twice.

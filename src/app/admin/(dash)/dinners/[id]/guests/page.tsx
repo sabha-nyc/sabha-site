@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { AddGuestForm } from "@/components/admin/AddGuestForm";
 import { CopyButton } from "@/components/admin/CopyButton";
 import { RemoveGuest } from "@/components/admin/RemoveGuest";
+import { TransferGuest } from "@/components/admin/TransferGuest";
 import { setDinnerStatus } from "@/app/admin/actions";
-import { attending, dinnerById, signupsFor } from "@/lib/dinners";
+import { attending, dinnerById, SEATED, signupsFor } from "@/lib/dinners";
 import { displayPhone, longDate, money, moneyExact, shortDate, time } from "@/lib/format";
 import type { Signup } from "@/lib/types";
 
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 const PILL: Record<string, { label: string; cls: string }> = {
   paid: { label: "Paid", cls: "" },
   comped: { label: "Comped", cls: "comp" },
+  transferred: { label: "Transferred", cls: "" },
   refunded: { label: "Refunded", cls: "quiet" },
   overbooked: { label: "Refund me", cls: "comp" },
 };
@@ -25,19 +27,22 @@ export default async function GuestList({ params }: { params: Promise<{ id: stri
   const all = await signupsFor(dinner.id);
   const rows = attending(all);
 
-  const paid = rows.filter((s) => s.status === "paid");
-  const comped = rows.filter((s) => s.status === "comped");
+  // A transferred seat is a paid seat with a different name on it. It counts
+  // towards the room and towards the money, exactly like the SQL says.
+  const seated = rows.filter((s) => SEATED.includes(s.status));
+  const paid = seated.filter((s) => s.status === "paid" || s.status === "transferred");
+  const comped = seated.filter((s) => s.status === "comped");
   const collected = paid.reduce((sum, s) => sum + (s.amount_paid_cents ?? 0), 0);
   const holds = all.filter(
     (s) => s.status === "pending" && s.hold_expires_at && new Date(s.hold_expires_at) > new Date()
   ).length;
-  const remaining = Math.max(0, dinner.seats_total - paid.length - comped.length - holds);
+  const remaining = Math.max(0, dinner.seats_total - seated.length - holds);
 
-  const dietText = rows
+  const dietText = seated
     .filter((s) => s.dietary_restrictions)
     .map((s) => `${s.name}: ${s.dietary_restrictions}`)
     .join("\n");
-  const phoneText = rows.map((s) => `${s.name} ${displayPhone(s.phone)}`).join("\n");
+  const phoneText = seated.map((s) => `${s.name} ${displayPhone(s.phone)}`).join("\n");
 
   return (
     <div className="body">
@@ -147,14 +152,24 @@ function GuestRow({ signup: s, dinnerId }: { signup: Signup; dinnerId: string })
       </td>
       <td className="mono">{shortDate(s.created_at)}</td>
       <td>
-        {s.status === "refunded" ? null : (
-          <RemoveGuest
-            signupId={s.id}
-            dinnerId={dinnerId}
-            name={s.name}
-            refundable={Boolean(s.stripe_payment_intent)}
-          />
-        )}
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+          {SEATED.includes(s.status) ? (
+            <TransferGuest
+              signupId={s.id}
+              dinnerId={dinnerId}
+              name={s.name}
+              phone={s.phone}
+            />
+          ) : null}
+          {s.status === "refunded" ? null : (
+            <RemoveGuest
+              signupId={s.id}
+              dinnerId={dinnerId}
+              name={s.name}
+              refundable={Boolean(s.stripe_payment_intent)}
+            />
+          )}
+        </div>
       </td>
     </tr>
   );

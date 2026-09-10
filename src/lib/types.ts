@@ -6,6 +6,7 @@ export type SignupStatus =
   | "cancelled"
   | "refunded"
   | "comped"
+  | "transferred"
   | "overbooked";
 
 export type Dinner = {

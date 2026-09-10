@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { AwaitPayment } from "@/components/AwaitPayment";
-import { dinnerBySlug, signupByToken } from "@/lib/dinners";
+import { dinnerBySlug, SEATED, signupByToken } from "@/lib/dinners";
 import { longDate, moneyExact, time } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export default async function ConfirmedPage({
     );
   }
 
-  if (!["paid", "comped"].includes(signup.status)) {
+  if (!SEATED.includes(signup.status)) {
     return (
       <main className="scr">
         <Logo />
@@ -110,6 +110,11 @@ export default async function ConfirmedPage({
       ) : null}
 
       {dinner.details_note ? <p className="fine">{dinner.details_note}</p> : null}
+
+      <p className="fine">
+        Seats are non-refundable. If you can&rsquo;t come, send someone in your place &mdash; text
+        the host their name and number, and this same link becomes theirs.
+      </p>
 
       <div className="grow" />
     </main>

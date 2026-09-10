@@ -37,7 +37,10 @@ create table if not exists signups (
   name                  text not null,
   phone                 text not null,
   dietary_restrictions  text,
-  -- pending | paid | cancelled | refunded | comped | overbooked
+  -- pending | paid | cancelled | refunded | comped | transferred | overbooked
+  --   transferred: the seat changed hands. Name and phone are the new guest's;
+  --   stripe_payment_intent still points at the original charge, because that
+  --   is who actually paid. Occupies a seat exactly like 'paid'.
   --   overbooked: the card was charged but the seat had gone. Rare, and only
   --   possible if a hold expires mid-checkout. Needs a manual refund; the
   --   admin guest list calls it out.
@@ -56,7 +59,7 @@ create index if not exists signups_dinner_status_idx on signups (dinner_id, stat
 -- one seat per phone number per dinner
 create unique index if not exists signups_one_seat_per_phone
   on signups (dinner_id, phone)
-  where status in ('paid', 'comped');
+  where status in ('paid', 'comped', 'transferred');
 
 -- ─────────────────────────────────────────── seats remaining is a query
 
@@ -65,7 +68,7 @@ select
   d.id,
   d.seats_total,
   d.seats_total - count(s.id) filter (
-    where s.status in ('paid','comped')
+    where s.status in ('paid','comped','transferred')
        or (s.status = 'pending' and s.hold_expires_at > now())
   ) as seats_remaining
 from dinners d
@@ -75,12 +78,19 @@ group by d.id;
 -- ─────────────────────────────────────────────────── rate limiting
 
 create table if not exists code_attempts (
-  id          bigserial primary key,
-  ip          text not null,
+  id           bigserial primary key,
+  ip           text not null,
+  kind         text not null default 'code',  -- code | hold
   attempted_at timestamptz not null default now()
 );
 
-create index if not exists code_attempts_ip_time_idx on code_attempts (ip, attempted_at desc);
+create index if not exists code_attempts_kind_ip_time_idx
+  on code_attempts (kind, ip, attempted_at desc);
+
+-- Nothing reads rows older than the longest window, so they are only ballast.
+-- Schedule with pg_cron if it is enabled, or run it by hand now and then.
+--   select cron.schedule('prune-code-attempts', '0 4 * * *',
+--     $$delete from code_attempts where attempted_at < now() - interval '1 day'$$);
 
 -- ─────────────────────────────────────────────── atomic seat hold
 -- Row-locks the dinner so the last two seats cannot be sold three times
@@ -95,7 +105,7 @@ create or replace function hold_seat(
 ) returns signups
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_dinner dinners;
@@ -114,7 +124,7 @@ begin
   perform 1 from signups s
    where s.dinner_id = p_dinner_id
      and s.phone = p_phone
-     and (s.status in ('paid','comped')
+     and (s.status in ('paid','comped','transferred')
        or (s.status = 'pending' and s.hold_expires_at > now()));
   if found then
     raise exception 'duplicate_phone';
@@ -122,7 +132,7 @@ begin
 
   select count(*) into v_taken from signups s
    where s.dinner_id = p_dinner_id
-     and (s.status in ('paid','comped')
+     and (s.status in ('paid','comped','transferred')
        or (s.status = 'pending' and s.hold_expires_at > now()));
 
   if v_taken >= v_dinner.seats_total then
@@ -154,7 +164,7 @@ create or replace function confirm_payment(
 ) returns signups
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_row    signups;
@@ -168,7 +178,7 @@ begin
   end if;
 
   -- Already settled. Nothing to do.
-  if v_row.status in ('paid', 'comped', 'refunded', 'overbooked') then
+  if v_row.status in ('paid', 'comped', 'transferred', 'refunded', 'overbooked') then
     return v_row;
   end if;
 
@@ -178,14 +188,14 @@ begin
     from signups s
    where s.dinner_id = v_row.dinner_id
      and s.id <> v_row.id
-     and s.status in ('paid', 'comped');
+     and s.status in ('paid', 'comped', 'transferred');
 
   select exists (
     select 1 from signups s
      where s.dinner_id = v_row.dinner_id
        and s.id <> v_row.id
        and s.phone = v_row.phone
-       and s.status in ('paid', 'comped')
+       and s.status in ('paid', 'comped', 'transferred')
   ) into v_dupe;
 
   if v_taken >= v_dinner.seats_total or v_dupe then

@@ -49,9 +49,12 @@ export async function signupsFor(dinnerId: string): Promise<Signup[]> {
   return (data ?? []) as Signup[];
 }
 
+/** The statuses that occupy a seat. Must match the SQL predicates exactly. */
+export const SEATED: readonly string[] = ["paid", "comped", "transferred"];
+
 /** Rows the host cares about: anyone who is coming, or paid and needs sorting out. */
 export function attending(signups: Signup[]): Signup[] {
-  return signups.filter((s) => ["paid", "comped", "overbooked", "refunded"].includes(s.status));
+  return signups.filter((s) => [...SEATED, "overbooked", "refunded"].includes(s.status));
 }
 
 export async function signupByToken(token: string): Promise<Signup | null> {
