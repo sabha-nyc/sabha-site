@@ -86,7 +86,14 @@ export async function startCheckout(_prev: FormState, form: FormData): Promise<F
     const session = await stripe().checkout.sessions.create(
       {
         mode: "payment",
+        // Pinned to card on purpose. Left unset, Stripe may offer an
+        // asynchronous method whose session completes as 'unpaid' and settles
+        // days later — a guest holding a confirmation for a seat nobody has
+        // been paid for.
         payment_method_types: ["card"],
+        // We already ask for a phone on our own form. If Checkout asks anyway,
+        // it is the account-level setting in the Stripe dashboard, not this.
+        phone_number_collection: { enabled: false },
         line_items: [
           {
             quantity: 1,
