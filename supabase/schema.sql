@@ -229,10 +229,21 @@ $$;
 -- in Vercel's environment variables and never reaches the browser.
 -- This is the opposite of the usual Supabase advice, and it is right here for
 -- one reason: the address and the guest list must not be public.
+--
+-- ENABLE, then FORCE. Enable alone still exempts the table owner, and the
+-- owner is the role the SQL editor runs as — so without FORCE these tables are
+-- readable by exactly the session most likely to be sitting open in a browser
+-- tab. There are no policies anywhere, deliberately: with none defined, RLS
+-- denies everything, and service_role gets through on BYPASSRLS rather than on
+-- a policy someone could later widen by accident.
 
 alter table dinners       enable row level security;
 alter table signups       enable row level security;
 alter table code_attempts enable row level security;
+
+alter table dinners       force row level security;
+alter table signups       force row level security;
+alter table code_attempts force row level security;
 
 revoke all on dinners       from anon, authenticated;
 revoke all on signups       from anon, authenticated;
@@ -240,3 +251,15 @@ revoke all on code_attempts from anon, authenticated;
 revoke all on dinner_availability from anon, authenticated;
 revoke execute on function hold_seat(uuid, text, text, text, int) from anon, authenticated;
 revoke execute on function confirm_payment(text, text, integer) from anon, authenticated;
+
+-- ─────────────────────────────── a note on FORCE and security definer
+-- hold_seat and confirm_payment are SECURITY DEFINER, so they execute as the
+-- function owner. FORCE makes the owner subject to RLS, and with no policies
+-- defined that means denied — unless the owner holds BYPASSRLS.
+--
+-- Whether Supabase's `postgres` role has BYPASSRLS is exactly the sort of thing
+-- that should be checked against the actual database rather than assumed. Run
+-- the verification block below after applying this file. If hold_seat fails,
+-- the fix is one word: drop `security definer` from both functions. They are
+-- only ever called through the service-role client, which has BYPASSRLS of its
+-- own, so running as the invoker is both sufficient and less privilege.
