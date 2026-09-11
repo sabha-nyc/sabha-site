@@ -37,6 +37,10 @@ create table if not exists signups (
   name                  text not null,
   phone                 text not null,
   dietary_restrictions  text,
+  -- Captured from Stripe Checkout's customer_details, not from our own form:
+  -- Checkout always collects an email, so asking again would be a second ask
+  -- for something we are already given.
+  email                 text,
   -- pending | paid | cancelled | refunded | comped | transferred | overbooked
   --   transferred: the seat changed hands. Name and phone are the new guest's;
   --   stripe_payment_intent still points at the original charge, because that

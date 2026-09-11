@@ -20,10 +20,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const rows = attending(await signupsFor(dinner.id));
 
   const csv = [
-    ["Name", "Phone", "Dietary restrictions", "Status", "Paid", "Signed up"],
+    ["Name", "Phone", "Email", "Dietary restrictions", "Status", "Paid", "Signed up"],
     ...rows.map((s) => [
       s.name,
       displayPhone(s.phone),
+      s.email ?? "",
       s.dietary_restrictions ?? "",
       s.status,
       s.amount_paid_cents != null ? (s.amount_paid_cents / 100).toFixed(2) : "",

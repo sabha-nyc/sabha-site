@@ -31,6 +31,7 @@ export type Signup = {
   name: string;
   phone: string;
   dietary_restrictions: string | null;
+  email: string | null;
   status: SignupStatus;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;

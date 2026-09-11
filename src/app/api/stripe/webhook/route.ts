@@ -3,7 +3,8 @@ import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { env } from "@/lib/env";
 import { db } from "@/lib/supabase";
-import { alertAdmins } from "@/lib/alerts";
+import { alertAdmins, sendGuestConfirmation } from "@/lib/alerts";
+import { dinnerById } from "@/lib/dinners";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,6 +51,41 @@ export async function POST(req: Request) {
         }
 
         const row = Array.isArray(data) ? data[0] : data;
+
+        // Checkout always collects an email, so we take it from there rather
+        // than asking for it a second time on our own form. Stored whatever
+        // the outcome — an overbooked guest is precisely someone we need to be
+        // able to write to.
+        const guestEmail = session.customer_details?.email ?? null;
+        if (guestEmail && row?.id) {
+          const { error: emailError } = await db()
+            .from("signups")
+            .update({ email: guestEmail })
+            .eq("id", row.id);
+          if (emailError) {
+            // Not worth a retry: the payment is recorded and the address is a
+            // convenience. Loud, but not fatal.
+            console.error("[webhook] could not store guest email", row.id, emailError);
+          }
+        }
+
+        if (row?.status === "paid" && guestEmail) {
+          const dinner = await dinnerById(row.dinner_id);
+          if (dinner) {
+            const sent = await sendGuestConfirmation(guestEmail, dinner, row);
+            if (!sent) {
+              // Deliberately NOT a 500. Stripe must not retry a payment we
+              // have already recorded just because an email bounced — the
+              // guest can still reach their details from the success page.
+              console.error(
+                "[webhook] CONFIRMATION EMAIL FAILED — guest is paid and seated but was not written to:",
+                row.id,
+                guestEmail
+              );
+            }
+          }
+        }
+
         if (row?.status === "overbooked") {
           console.error(
             "[webhook] OVERBOOKED — charged but no seat. Refund manually:",

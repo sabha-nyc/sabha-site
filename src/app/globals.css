@@ -333,7 +333,7 @@ a { color: var(--ink); }
 .adm .abtn:disabled { opacity: 0.5; cursor: default; }
 
 .adm .tablewrap { overflow-x: auto; margin: 20px 0 0; }
-.adm table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 13.5px; }
+.adm table { border-collapse: collapse; width: 100%; min-width: 840px; font-size: 13.5px; }
 .adm th {
   text-align: left;
   font-size: 9.5px;

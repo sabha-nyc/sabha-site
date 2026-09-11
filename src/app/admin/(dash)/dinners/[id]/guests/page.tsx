@@ -111,6 +111,7 @@ export default async function GuestList({ params }: { params: Promise<{ id: stri
               <tr>
                 <th>Name</th>
                 <th>Phone</th>
+                <th>Email</th>
                 <th>Dietary restrictions</th>
                 <th>Status</th>
                 <th>Paid</th>
@@ -136,6 +137,7 @@ function GuestRow({ signup: s, dinnerId }: { signup: Signup; dinnerId: string })
     <tr>
       <td>{s.name}</td>
       <td className="mono">{displayPhone(s.phone)}</td>
+      <td>{s.email ?? <span className="none">&mdash;</span>}</td>
       <td>{s.dietary_restrictions ?? <span className="none">&mdash;</span>}</td>
       <td>
         <span className={`pill ${pill.cls}`}>{pill.label}</span>
