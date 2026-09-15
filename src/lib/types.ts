@@ -22,6 +22,7 @@ export type Dinner = {
   details_note: string | null;
   host_phone: string | null;
   status: DinnerStatus;
+  requires_code: boolean;
   created_at: string;
 };
 
