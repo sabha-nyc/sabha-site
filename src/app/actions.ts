@@ -47,10 +47,9 @@ export async function startCheckout(_prev: FormState, form: FormData): Promise<F
   const phoneRaw = String(form.get("phone") ?? "");
   const diet = String(form.get("dietary_restrictions") ?? "");
 
-  if (!(await hasAccess(slug))) redirect("/");
-
-  const dinner = await dinnerBySlug(slug);
-  if (!dinner) redirect("/");
+const dinner = await dinnerBySlug(slug);
+      if (!dinner) redirect("/");
+      if (dinner.requires_code && !(await hasAccess(slug))) redirect("/");
 
   if (!name) return { error: "We need a name for the door." };
 
