@@ -22,8 +22,23 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  // Absolute URLs for og:image. Without this Next emits a relative path and
+  // some clients refuse to render the card.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://sabhanyc.com"),
   title: "Sabha",
   description: "Invitation only.",
+  openGraph: {
+    title: "Sabha",
+    description: "Invitation only.",
+    siteName: "Sabha",
+    url: "/",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sabha",
+    description: "Invitation only.",
+  },
   robots: { index: false, follow: false },
 };
 
