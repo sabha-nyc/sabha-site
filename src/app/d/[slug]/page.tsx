@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { hasAccess } from "@/lib/access";
 import { dinnerBySlug, seatsRemaining } from "@/lib/dinners";
-import { longDate, money, seatsLeft, time } from "@/lib/format";
+import { longDate, money, time } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,6 @@ export default async function DinnerPage({ params }: { params: Promise<{ slug: s
         </>
       ) : (
         <>
-          <p className="seats">{seatsLeft(remaining)}</p>
           <Link className="btn" href={`/d/${slug}/signup`}>
             Sign up
           </Link>
