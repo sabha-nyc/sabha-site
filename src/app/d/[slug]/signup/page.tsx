@@ -11,10 +11,9 @@ export const dynamic = "force-dynamic";
 
 export default async function SignupPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  if (!(await hasAccess(slug))) redirect("/?e=1");
-
   const dinner = await dinnerBySlug(slug);
-  if (!dinner || dinner.status !== "open") redirect(`/d/${slug}`);
+      if (!dinner || dinner.status !== "open") redirect(`/d/${slug}`);
+      if (dinner.requires_code && !(await hasAccess(slug))) redirect("/?e=1");
 
   const remaining = await seatsRemaining(dinner.id);
   if (remaining <= 0) redirect(`/d/${slug}/full`);
