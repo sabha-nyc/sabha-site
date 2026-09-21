@@ -492,3 +492,65 @@ a { color: var(--ink); }
 .adm .stripemode.unknown { color: var(--accent-warn); background: #F6EBE3; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+
+/* ─────────────────────────────── swipe tabs (Details / About) */
+
+.scr--wide { max-width: 430px; }
+@media (min-width: 860px) { .scr--wide { max-width: 900px; } }
+
+.swipe-shell { margin-top: 30px; }
+
+.swipe-tabs {
+     display: flex;
+     gap: 24px;
+     justify-content: center;
+}
+.swipe-tab {
+     background: none;
+     border: 0;
+     padding: 0 0 8px;
+     font-family: inherit;
+     font-size: 9.5px;
+     letter-spacing: 0.22em;
+     text-transform: uppercase;
+     font-weight: 600;
+     color: var(--ink-muted);
+     cursor: pointer;
+     border-bottom: 2px solid transparent;
+}
+.swipe-tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+
+.swipe-track {
+     display: flex;
+     overflow-x: auto;
+     scroll-snap-type: x mandatory;
+     -webkit-overflow-scrolling: touch;
+     scrollbar-width: none;
+     margin-top: 22px;
+}
+.swipe-track::-webkit-scrollbar { display: none; }
+
+.swipe-panel { flex: 0 0 100%; min-width: 100%; scroll-snap-align: start; }
+
+.about-copy { text-align: left; }
+.about-copy p {
+     font-family: var(--font-halant), Georgia, serif;
+     font-size: 15px;
+     line-height: 1.6;
+     color: var(--ink-body);
+     margin: 0 0 16px;
+}
+.about-copy p:last-child { margin-bottom: 0; }
+
+@media (min-width: 860px) {
+     .swipe-tabs { display: none; }
+     .swipe-track {
+            overflow: visible;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 56px;
+            margin-top: 40px;
+     }
+     .swipe-panel { min-width: 0; scroll-snap-align: none; }
+}
