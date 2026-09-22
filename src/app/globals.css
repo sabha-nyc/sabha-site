@@ -497,7 +497,6 @@ a { color: var(--ink); }
 /* ─────────────────────────────── swipe tabs (Details / About) */
 
 .scr--wide { max-width: 430px; }
-@media (min-width: 860px) { .scr--wide { max-width: 900px; } }
 
 .swipe-shell { margin-top: 30px; }
 
@@ -542,18 +541,6 @@ a { color: var(--ink); }
      margin: 0 0 16px;
 }
 .about-copy p:last-child { margin-bottom: 0; }
-
-@media (min-width: 860px) {
-     .swipe-tabs { display: none; }
-     .swipe-track {
-            overflow: visible;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 56px;
-            margin-top: 40px;
-     }
-     .swipe-panel { min-width: 0; scroll-snap-align: none; }
-}
 
 .about-photos {
      display: grid;
